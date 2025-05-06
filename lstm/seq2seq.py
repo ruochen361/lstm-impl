@@ -19,7 +19,7 @@ class Seq2Seq:
             outputs: 各时刻输出 [seq_len, vocab_size]
         """
         # 编码阶段
-        h_enc, c_enc = self.encoder.forward(src_seq)
+        h_enc, c_enc, _ = self.encoder.forward(src_seq)
 
         # 解码阶段初始化
         seq_len = len(tgt_seq)
@@ -31,12 +31,12 @@ class Seq2Seq:
             # 决定是否使用教师强制
             use_teacher_forcing = np.random.random() < teacher_forcing_ratio
             if use_teacher_forcing and t > 0:
-                # 使用真实上一时刻标签
                 prev_token = np.zeros_like(prev_token)
+                # 使用真实上一时刻标签
                 prev_token[tgt_seq[t - 1]] = 1.0
 
             # 解码步骤
-            output, h_dec, c_dec = self.decoder.forward_step(prev_token, h_dec, c_dec)
+            output, h_dec, c_dec, dec_cache = self.decoder.forward_step(prev_token, h_dec, c_dec)
             outputs.append(output)
 
             # 更新下一时刻输入

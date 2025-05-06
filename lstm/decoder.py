@@ -21,9 +21,9 @@ class Decoder:
             h: 新隐藏状态
             c: 新细胞状态
         """
-        h, c = self.lstm.forward(x, h_prev, c_prev)
+        h, c, cache = self.lstm.forward_step(x, h_prev, c_prev)
         output = np.dot(self.W_out, h) + self.b_out
-        return output, h, c
+        return output, h, c, cache
 
     def get_params(self):
         return self.lstm.W, self.lstm.b, self.W_out, self.b_out

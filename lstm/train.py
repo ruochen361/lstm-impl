@@ -3,6 +3,7 @@ from seq2seq import Seq2Seq
 from losses import CrossEntropyLoss
 from optimizer import Adam
 from utils import NMTMetrics
+import joblib
 
 
 # 配置参数
@@ -18,11 +19,12 @@ class Config:
 
 def generate_dummy_data(config):
     """生成虚拟训练数据"""
+    # 生成可学习模式（目标为源序列反转）
     data = []
     for _ in range(100):  # 100个样本
         seq_len = np.random.randint(5, config.max_seq_len)
         src = [np.random.rand(config.src_vocab_size, 1) for _ in range(seq_len)]
-        tgt = [np.random.randint(config.tgt_vocab_size) for _ in range(seq_len)]
+        tgt = list(range(seq_len))[::-1]  # 反转序列作为目标
         data.append({'src': src, 'tgt': tgt})
     return data
 
@@ -52,37 +54,13 @@ def train():
 
             total_loss += loss
 
+        # 保存模型
+        joblib.dump(model, 'model.pkl')
         # 验证评估
         avg_loss = total_loss / len(train_data)
         bleu = evaluate(model)
         print(f"Epoch {epoch + 1} | Loss: {avg_loss:.4f} | BLEU: {bleu:.4f}")
 
-
-def calculate_gradients(model, output_grads):
-    """计算各参数梯度（简化示例）"""
-    gradients = {}
-
-    # 解码器输出层梯度
-    decoder_W_grad = np.zeros_like(model.decoder.W_out)
-    decoder_b_grad = np.zeros_like(model.decoder.b_out)
-
-    for t, grad in enumerate(output_grads):
-        h_dec = model.decoder.lstm.hidden_state_history[t]
-        decoder_W_grad += np.outer(grad, h_dec)
-        decoder_b_grad += grad
-
-    gradients['decoder.W_out'] = decoder_W_grad / len(output_grads)
-    gradients['decoder.b_out'] = decoder_b_grad.mean(axis=1, keepdims=True)
-
-    # LSTM梯度需要根据时间步传播（此处简化实现）
-    # 实际需要实现BPTT算法
-    gradients['encoder.W'] = np.random.randn(*model.encoder.lstm.W.shape) * 0.01
-    gradients['encoder.b'] = np.random.randn(*model.encoder.lstm.b.shape) * 0.01
-    gradients['decoder.W'] = np.random.randn(*model.decoder.lstm.W.shape) * 0.01
-    gradients['decoder.b'] = np.random.randn(*model.decoder.lstm.b.shape) * 0.01
-
-    backpropagate_through_time(model, src_seq, tgt_seq, output_grads)
-    return gradients
 
 
 def backpropagate_through_time(model, src_seq, tgt_seq, output_grads):
@@ -106,19 +84,15 @@ def backpropagate_through_time(model, src_seq, tgt_seq, output_grads):
         'decoder.b_out': np.zeros_like(model.decoder.b_out)
     }
 
-    # 前向传播并保存所有中间状态
-    encoder_states = []
-    h_enc, c_enc = np.zeros((model.encoder.hidden_size, 1)), np.zeros((model.encoder.hidden_size, 1))
-    for x in src_seq:
-        h_enc, c_enc, enc_cache = model.encoder.lstm.forward_step(x, h_enc, c_enc)
-        encoder_states.append((x, h_enc.copy(), c_enc.copy(), enc_cache))
+    # 前向传播编码器并获取缓存
+    h_enc, c_enc, encoder_states = model.encoder.forward(src_seq)
 
     # 解码器前向传播保存状态
     decoder_states = []
     h_dec, c_dec = h_enc.copy(), c_enc.copy()
     for t in range(len(tgt_seq)):
-        x = np.zeros((model.decoder.lstm.input_size, 1))  # 假设使用基础输入
-        h_dec, c_dec, dec_cache = model.decoder.lstm.forward_step(x, h_dec, c_dec)
+        x = np.zeros((model.decoder.lstm.input_size, 1))
+        output, h_dec, c_dec, dec_cache = (model.decoder.forward_step(x, h_dec, c_dec))
         decoder_states.append(dec_cache)
 
     # 反向传播解码器
@@ -180,8 +154,22 @@ def backpropagate_through_time(model, src_seq, tgt_seq, output_grads):
     grads['encoder.W'] /= len(src_seq)
     grads['encoder.b'] /= len(src_seq)
 
+    # 梯度裁剪
+    grads = clip_gradients(grads, max_norm=5.0)
     return grads
 
+
+def clip_gradients(grads, max_norm):
+    total_norm = 0
+    for g in grads.values():
+        total_norm += np.sum(g ** 2)
+    total_norm = np.sqrt(total_norm)
+
+    if total_norm > max_norm:
+        scale = max_norm / (total_norm + 1e-6)
+        for key in grads:
+            grads[key] *= scale
+    return grads
 
 def evaluate(model, num_samples=10):
     """评估模型"""
