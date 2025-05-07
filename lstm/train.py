@@ -1,8 +1,8 @@
 import numpy as np
+from lstm.evaluate import evaluate, POSConfusionMatrix
 from seq2seq import Seq2Seq
 from losses import CrossEntropyLoss
 from optimizer import Adam
-from utils import NMTMetrics
 import joblib
 
 
@@ -34,7 +34,7 @@ def train():
     model = Seq2Seq(Config.src_vocab_size, Config.tgt_vocab_size, Config.hidden_size)
     optimizer = Adam(lr=Config.learning_rate)
     train_data = generate_dummy_data(Config)
-
+    pos_evaluator = POSConfusionMatrix()
     # 训练循环
     for epoch in range(Config.epochs):
         total_loss = 0
@@ -58,8 +58,17 @@ def train():
         joblib.dump(model, 'model.pkl')
         # 验证评估
         avg_loss = total_loss / len(train_data)
-        bleu = evaluate(model)
+
+        # 生成测试数据
+        test_data = generate_dummy_data(Config)[:10]
+        bleu = evaluate(model,test_data,pos_evaluator)
         print(f"Epoch {epoch + 1} | Loss: {avg_loss:.4f} | BLEU: {bleu:.4f}")
+
+        # 定期输出词性分析
+        if (epoch + 1) % 5 == 0:
+            print("\n词性级别分析:")
+            pos_evaluator.plot()
+            pos_evaluator.reset()
 
 
 
@@ -171,30 +180,6 @@ def clip_gradients(grads, max_norm):
             grads[key] *= scale
     return grads
 
-def evaluate(model, num_samples=10):
-    """评估模型"""
-    references = []
-    hypotheses = []
-
-    # 生成测试数据
-    test_data = generate_dummy_data(Config)[:num_samples]
-
-    for sample in test_data:
-        # 真实参考（示例数据直接使用输入）
-        references.append([[str(i) for i in sample['tgt']]])
-
-        # 模型预测
-        outputs = model.forward(sample['src'], [0] * len(sample['tgt']))
-        preds = [np.argmax(o) for o in outputs]
-        hypotheses.append([str(p) for p in preds])
-
-    # 计算BLEU
-    bleu_scores = []
-    for ref, hyp in zip(references, hypotheses):
-        bleu = NMTMetrics.bleu_score(ref, hyp)
-        bleu_scores.append(bleu)
-
-    return np.mean(bleu_scores)
 
 
 if __name__ == "__main__":
