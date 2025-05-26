@@ -65,3 +65,44 @@ class Seq2Seq:
             params['decoder.W_out'],
             params['decoder.b_out']
         )
+
+    def generate(self, src_seq, max_len=50, sos_id=1, eos_id=2):
+        """
+        自回归生成序列
+        参数:
+            src_seq: 源序列 [seq_len, vocab_size, 1]
+            max_len: 最大生成长度
+            sos_id: 起始符索引
+            eos_id: 结束符索引
+        返回:
+            output_ids: 生成的目标序列索引列表
+        """
+        # 编码阶段
+        h_enc, c_enc, _ = self.encoder.forward(src_seq)
+
+        # 初始化解码器输入（sos的one-hot）
+        prev_token = np.zeros((self.decoder.lstm.input_size, 1))
+        prev_token[sos_id, 0] = 1.0  # 初始输入为<sos>
+
+        # 存储生成结果
+        output_ids = []
+        h_dec, c_dec = h_enc, c_enc
+
+        for _ in range(max_len):
+            # 解码步骤
+            output, h_dec, c_dec, _ = self.decoder.forward_step(prev_token, h_dec, c_dec)
+
+            # 获取预测词ID
+            pred_id = np.argmax(output.flatten())  # 展平后取argmax
+
+            # 终止条件
+            if pred_id == eos_id:
+                break
+
+            output_ids.append(pred_id)
+
+            # 准备下一时刻输入（预测词的one-hot）
+            prev_token = np.zeros_like(prev_token)
+            prev_token[pred_id, 0] = 1.0
+
+        return output_ids

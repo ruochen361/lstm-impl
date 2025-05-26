@@ -1,38 +1,38 @@
 import numpy as np
-from lstm.utils import NMTMetrics
+from nltk.translate.bleu_score import SmoothingFunction, corpus_bleu
+
 from collections import defaultdict
 import matplotlib.pyplot as plt
 import seaborn as sns
 from nltk import pos_tag
 
-def evaluate(model, test_data, pos_evaluator=None):
+def evaluate(model, test_data, src_vocab, tgt_vocab, pos_evaluator=None):
     """评估模型"""
+    idx_to_word = {v: k for k, v in tgt_vocab.items()}
+
     references = []
     hypotheses = []
 
     for sample in test_data:
 
-        # 模型预测
-        outputs = model.forward(sample['src'], [0] * len(sample['tgt']))
-        pred_ids = [np.argmax(o) for o in outputs]
-        pred_words = [str(idx) for idx in pred_ids]
+        # 生成翻译结果（使用自回归生成）
+        pred_ids = model.generate(sample['src'], max_len=50)
 
-        # 收集参考和预测
-        ref_words = [str(w) for w in sample['tgt']]
-        references.append(ref_words)  # BLEU需要嵌套列表
+        # 转换索引到词汇并过滤特殊符号
+        pred_words = [idx_to_word[i] for i in pred_ids
+                      if idx_to_word[i] not in {'<sos>', '<pad>', '<eos>'}]
+        ref_words = [idx_to_word[i] for i in sample['tgt']
+                     if idx_to_word[i] not in {'<sos>', '<pad>', '<eos>'}]
+
+        references.append([ref_words])  # 保持嵌套结构
         hypotheses.append(pred_words)
 
         # 更新词性混淆矩阵
         if pos_evaluator is not None:
             pos_evaluator.update([ref_words], [pred_words])
 
-    # 计算BLEU
-    bleu_scores = []
-    for ref, hyp in zip(references, hypotheses):
-        bleu = NMTMetrics.bleu_score(ref, hyp)
-        bleu_scores.append(bleu)
-
-    return np.mean(bleu_scores)
+        # 使用标准BLEU计算
+        return corpus_bleu(references, hypotheses, smoothing_function=SmoothingFunction().method4)
 
 
 

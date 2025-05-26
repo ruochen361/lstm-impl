@@ -1,0 +1,26 @@
+Epoch 1 | Loss: 4.3809 | BLEU: 0.0000
+Epoch 2 | Loss: 4.3779 | BLEU: 0.0000
+Epoch 3 | Loss: 4.3740 | BLEU: 0.0000
+Epoch 4 | Loss: 4.3672 | BLEU: 0.0000
+Epoch 5 | Loss: 4.3521 | BLEU: 0.0000
+
+词性级别分析:
+Epoch 6 | Loss: 4.3015 | BLEU: 0.0000
+Epoch 7 | Loss: 3.9652 | BLEU: 0.0000
+Epoch 8 | Loss: 2.9453 | BLEU: 0.0000
+Epoch 9 | Loss: 2.6585 | BLEU: 0.0000
+Epoch 10 | Loss: 2.6149 | BLEU: 0.0000
+
+词性级别分析:
+Epoch 11 | Loss: 2.5851 | BLEU: 0.0000
+Epoch 12 | Loss: 2.5667 | BLEU: 0.0000
+Epoch 13 | Loss: 2.5470 | BLEU: 0.0000
+Epoch 14 | Loss: 2.5267 | BLEU: 0.0000
+Epoch 15 | Loss: 2.5068 | BLEU: 0.0000
+
+词性级别分析:
+Epoch 16 | Loss: 2.4866 | BLEU: 0.0000
+Epoch 17 | Loss: 2.4650 | BLEU: 0.0000
+Epoch 18 | Loss: 2.4423 | BLEU: 0.0000
+Epoch 19 | Loss: 2.4178 | BLEU: 0.0000
+Epoch 20 | Loss: 2.3915 | BLEU: 0.0000

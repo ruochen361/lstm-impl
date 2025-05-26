@@ -8,32 +8,91 @@ import joblib
 
 # 配置参数
 class Config:
-    src_vocab_size = 1000
-    tgt_vocab_size = 1000
+    src_vocab_size = 80
+    tgt_vocab_size = 80
     hidden_size = 128
-    learning_rate = 0.001
-    batch_size = 32
-    epochs = 10
+    learning_rate = 0.0001
+    batch_size = 8
+    epochs = 20
     max_seq_len = 20
 
 
 def generate_dummy_data(config):
-    """生成虚拟训练数据"""
-    # 生成可学习模式（目标为源序列反转）
+    # 定义20组中英文互译样本 (分词后形式)
+    samples = [
+        {"src": ["<sos>","Hello","<eos>"], "tgt": ["<sos>","你好","<eos>"]},
+        {"src": ["<sos>","Goodbye","<eos>"], "tgt": ["<sos>","再见","<eos>"]},
+        {"src": ["<sos>","Good", "morning","<eos>"], "tgt": ["<sos>","早上", "好","<eos>"]},
+        {"src": ["<sos>","Good", "evening","<eos>"], "tgt": ["<sos>","晚上", "好","<eos>"]},
+        {"src": ["<sos>","How", "are", "you","<eos>"], "tgt": ["<sos>","你", "好", "吗","<eos>"]},
+        {"src": ["<sos>","Thank", "you","<eos>"], "tgt": ["<sos>","谢谢","<eos>"]},
+        {"src": ["<sos>","You're", "welcome","<eos>"], "tgt": ["<sos>","不", "客气","<eos>"]},
+        {"src": ["<sos>","I", "love", "you","<eos>"], "tgt": ["<sos>","我", "爱", "你","<eos>"]},
+        {"src": ["<sos>","What's", "your", "name","<eos>"], "tgt": ["<sos>","你", "叫", "什么", "名字","<eos>"]},
+        {"src": ["<sos>","My", "name", "is", "Alice","<eos>"], "tgt": ["<sos>","我", "叫", "艾丽斯","<eos>"]},
+        {"src": ["<sos>","How", "old", "are", "you","<eos>"], "tgt": ["<sos>","你", "多", "大","<eos>"]},
+        {"src": ["<sos>","I", "am", "20","<eos>"], "tgt": ["<sos>","我", "二十", "岁","<eos>"]},
+        {"src": ["<sos>","Where", "is", "the", "bathroom","<eos>"], "tgt": ["<sos>","洗手间", "在", "哪里","<eos>"]},
+        {"src": ["<sos>","This", "is", "a", "book","<eos>"], "tgt": ["<sos>","这", "是", "一本", "书","<eos>"]},
+        {"src": ["<sos>","I", "like", "learning","<eos>"], "tgt": ["<sos>","我", "喜欢", "学习","<eos>"]},
+        {"src": ["<sos>","What", "time", "is", "it","<eos>"], "tgt": ["<sos>","现在", "几点","<eos>"]},
+        {"src": ["<sos>","Nice", "to", "meet", "you","<eos>"], "tgt": ["<sos>","很", "高兴", "认识", "你","<eos>"]},
+        {"src": ["<sos>","Have", "a", "good", "day","<eos>"], "tgt": ["<sos>","祝", "你", "有", "美好", "一天","<eos>"]},
+        {"src": ["<sos>","See", "you", "tomorrow","<eos>"], "tgt": ["<sos>","明天", "见","<eos>"]},
+        {"src": ["<sos>","Happy", "birthday","<eos>"], "tgt": ["<sos>","生日", "快乐","<eos>"]}
+    ]
+
+    # 构建含特殊符号的词汇表
+    special_symbols = ['<pad>', '<sos>', '<eos>', '<unk>']
+
+    src_vocab = {sym: i for i, sym in enumerate(special_symbols)}
+    tgt_vocab = {sym: i for i, sym in enumerate(special_symbols)}
+
+    # 收集所有源语言词
+    for sample in samples:
+        for word in sample["src"]:
+            if word not in src_vocab:
+                src_vocab[word] = len(src_vocab)
+
+    # 收集所有目标语言词
+    for sample in samples:
+        for word in sample["tgt"]:
+            if word not in tgt_vocab:
+                tgt_vocab[word] = len(tgt_vocab)
+
+    # Padding处理
+    max_src_len = max(len(s["src"]) for s in samples)
+    max_tgt_len = max(len(s["tgt"]) for s in samples)
+    # 生成训练数据
     data = []
-    for _ in range(100):  # 100个样本
-        seq_len = np.random.randint(5, config.max_seq_len)
-        src = [np.random.rand(config.src_vocab_size, 1) for _ in range(seq_len)]
-        tgt = list(range(seq_len))[::-1]  # 反转序列作为目标
-        data.append({'src': src, 'tgt': tgt})
-    return data
+    for sample in samples:
+        # 源序列处理
+        src_seq = []
+        for word in sample["src"]:
+            vec = np.zeros((config.src_vocab_size,1))
+            vec[src_vocab.get(word, src_vocab['<unk>']),0] = 1
+            src_seq.append(vec)
+        # Padding填充
+        while len(src_seq) < max_src_len:
+            vec = np.zeros((config.src_vocab_size, 1))  # 修正为二维列向量
+            vec[src_vocab['<pad>'], 0] = 1  # 二维索引赋值
+            src_seq.append(vec)  # 保持所有输入为二维
+
+        # 目标序列处理
+        tgt_seq = [tgt_vocab['<sos>']] + [tgt_vocab.get(w, tgt_vocab['<unk>']) for w in sample["tgt"][1:-1]] + [
+            tgt_vocab['<eos>']]
+        # Padding填充
+        tgt_seq = tgt_seq + [tgt_vocab['<pad>']] * (max_tgt_len - len(tgt_seq))
+
+        data.append({'src': src_seq, 'tgt': tgt_seq})
+    return data,src_vocab, tgt_vocab
 
 
 def train():
     # 初始化组件
     model = Seq2Seq(Config.src_vocab_size, Config.tgt_vocab_size, Config.hidden_size)
     optimizer = Adam(lr=Config.learning_rate)
-    train_data = generate_dummy_data(Config)
+    train_data, src_vocab, tgt_vocab = generate_dummy_data(Config)
     pos_evaluator = POSConfusionMatrix()
     # 训练循环
     for epoch in range(Config.epochs):
@@ -60,8 +119,9 @@ def train():
         avg_loss = total_loss / len(train_data)
 
         # 生成测试数据
-        test_data = generate_dummy_data(Config)[:10]
-        bleu = evaluate(model,test_data,pos_evaluator)
+        dummy_data, _, _ = generate_dummy_data(Config)
+        test_data = dummy_data[:10]
+        bleu = evaluate(model,test_data, src_vocab, tgt_vocab, pos_evaluator)
         print(f"Epoch {epoch + 1} | Loss: {avg_loss:.4f} | BLEU: {bleu:.4f}")
 
         # 定期输出词性分析
